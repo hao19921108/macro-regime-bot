@@ -34,35 +34,23 @@ jobs:
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
+          test -n "$DISCORD_WEBHOOK" || {
+            echo "DISCORD_WEBHOOK secret is not configured"
+            exit 1
+          }
+
           python - <<'PY'
           import json
-          import os
-          import sys
-          import urllib.error
-          import urllib.request
-
-          webhook = os.environ.get("DISCORD_WEBHOOK")
-          if not webhook:
-              sys.exit("DISCORD_WEBHOOK secret is not configured")
 
           with open("discord_summary.txt", "r", encoding="utf-8") as handle:
               summary = handle.read().strip()
 
-          payload = json.dumps({"content": f"```text\n{summary}\n```"}).encode("utf-8")
-          request = urllib.request.Request(
-              webhook,
-              data=payload,
-              headers={"Content-Type": "application/json"},
-              method="POST",
-          )
-
-          try:
-              with urllib.request.urlopen(request, timeout=30) as response:
-                  if response.status >= 300:
-                      sys.exit(f"Discord webhook failed with HTTP {response.status}")
-          except urllib.error.HTTPError as exc:
-              body = exc.read().decode("utf-8", errors="replace")
-              sys.exit(f"Discord webhook failed with HTTP {exc.code}: {body}")
-          except urllib.error.URLError as exc:
-              sys.exit(f"Discord webhook request failed: {exc.reason}")
+          with open("discord_payload.json", "w", encoding="utf-8") as handle:
+              json.dump({"content": f"```text\n{summary}\n```"}, handle)
           PY
+
+          curl --fail-with-body --silent --show-error \
+            -H "Content-Type: application/json" \
+            -H "User-Agent: macro-regime-bot-github-actions/1.0" \
+            --data @discord_payload.json \
+            "$DISCORD_WEBHOOK"
