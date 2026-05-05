@@ -38,8 +38,10 @@ fail before they are sent.
 
 ## Daily Schedule
 
-The workflow runs on weekdays at `14:00 UTC`, which is early morning in Los
-Angeles. It can also be triggered manually with `workflow_dispatch`.
+The workflow runs Monday through Friday at `22:00 UTC`, safely after the regular
+U.S. equity market close. That is 2:00 PM Los Angeles time during standard time
+and 3:00 PM Los Angeles time during daylight time. It can also be triggered
+manually with `workflow_dispatch`.
 
 ## Data Sources
 
