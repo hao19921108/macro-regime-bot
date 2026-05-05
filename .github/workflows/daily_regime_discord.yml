@@ -39,15 +39,11 @@ jobs:
             exit 1
           }
 
-          python - <<'PY'
-          import json
-
-          with open("discord_summary.txt", "r", encoding="utf-8") as handle:
-              summary = handle.read().strip()
-
-          with open("discord_payload.json", "w", encoding="utf-8") as handle:
-              json.dump({"content": f"```text\n{summary}\n```"}, handle)
-          PY
+          {
+            printf '```text\n'
+            cat discord_summary.txt
+            printf '\n```'
+          } | jq -Rs '{content: .}' > discord_payload.json
 
           curl --fail-with-body --silent --show-error \
             -H "Content-Type: application/json" \
