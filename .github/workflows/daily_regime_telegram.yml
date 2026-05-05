@@ -39,14 +39,23 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           python - <<'PY'
-          import json, os, sys, urllib.request, urllib.error
+          import http.client
+          import json
+          import os
+          import sys
+          import urllib.error
+          import urllib.request
 
-          token = os.environ.get("TELEGRAM_BOT_TOKEN")
-          chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+          token = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
+          chat_id = (os.environ.get("TELEGRAM_CHAT_ID") or "").strip()
           if not token:
               sys.exit("Missing TELEGRAM_BOT_TOKEN")
           if not chat_id:
               sys.exit("Missing TELEGRAM_CHAT_ID")
+          if any(ord(ch) < 32 for ch in token):
+              sys.exit("TELEGRAM_BOT_TOKEN contains a control character. Re-save the GitHub secret without extra line breaks.")
+          if any(ord(ch) < 32 for ch in chat_id):
+              sys.exit("TELEGRAM_CHAT_ID contains a control character. Re-save the GitHub secret without extra line breaks.")
 
           with open("telegram_summary.txt", "r", encoding="utf-8") as f:
               summary = f.read().strip()
@@ -85,5 +94,9 @@ jobs:
               sys.exit(1)
           except urllib.error.URLError as e:
               print("Request failed:", e.reason)
+              sys.exit(1)
+          except http.client.InvalidURL as e:
+              print("Invalid Telegram API URL. Check TELEGRAM_BOT_TOKEN for hidden spaces or line breaks.")
+              print(e)
               sys.exit(1)
           PY

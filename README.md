@@ -25,6 +25,10 @@ Select `New repository secret` and add:
 The workflow reads these values from GitHub Actions secrets. The bot token and
 chat ID are not hardcoded in the repo.
 
+When adding the secrets, paste only the raw value. Do not include quotes, spaces,
+or extra line breaks. A token with a trailing newline can make Telegram requests
+fail before they are sent.
+
 ## Manual Workflow Run
 
 1. In GitHub, open the `Actions` tab.
