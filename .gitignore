@@ -1,0 +1,4 @@
+.venv/
+daily_regime_output.txt
+discord_summary.txt
+__pycache__/

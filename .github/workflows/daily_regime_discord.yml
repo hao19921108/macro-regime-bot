@@ -1,0 +1,68 @@
+name: Daily Regime Discord
+
+on:
+  schedule:
+    - cron: "0 14 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  daily-regime:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run regime classifier
+        run: python regime_classifier.py | tee daily_regime_output.txt
+
+      - name: Extract Discord summary
+        run: |
+          awk '/^=== DISCORD SUMMARY ===/{found=1} found' daily_regime_output.txt > discord_summary.txt
+          test -s discord_summary.txt
+          cat discord_summary.txt
+
+      - name: Send summary to Discord
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import sys
+          import urllib.error
+          import urllib.request
+
+          webhook = os.environ.get("DISCORD_WEBHOOK")
+          if not webhook:
+              sys.exit("DISCORD_WEBHOOK secret is not configured")
+
+          with open("discord_summary.txt", "r", encoding="utf-8") as handle:
+              summary = handle.read().strip()
+
+          payload = json.dumps({"content": f"```text\n{summary}\n```"}).encode("utf-8")
+          request = urllib.request.Request(
+              webhook,
+              data=payload,
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
+
+          try:
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  if response.status >= 300:
+                      sys.exit(f"Discord webhook failed with HTTP {response.status}")
+          except urllib.error.HTTPError as exc:
+              body = exc.read().decode("utf-8", errors="replace")
+              sys.exit(f"Discord webhook failed with HTTP {exc.code}: {body}")
+          except urllib.error.URLError as exc:
+              sys.exit(f"Discord webhook request failed: {exc.reason}")
+          PY
