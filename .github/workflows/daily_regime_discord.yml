@@ -5,16 +5,19 @@ on:
     - cron: "0 14 * * 1-5"
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   daily-regime:
     runs-on: ubuntu-latest
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.2
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6.2.0
         with:
           python-version: "3.11"
 
@@ -30,7 +33,7 @@ jobs:
           test -s discord_summary.txt
           cat discord_summary.txt
 
-      - name: Send summary to Discord
+      - name: Send Discord message
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
@@ -39,14 +42,18 @@ jobs:
             exit 1
           }
 
-          {
-            printf '```text\n'
-            cat discord_summary.txt
-            printf '\n```'
-          } | jq -Rs '{content: .}' > discord_payload.json
+          CONTENT=$(python - <<'PY'
+          import json
+          from pathlib import Path
 
-          curl --fail-with-body --silent --show-error \
+          summary = Path("discord_summary.txt").read_text(encoding="utf-8").strip()
+          print(json.dumps({"content": f"```text\n{summary[:1800]}\n```"}))
+          PY
+          )
+
+          curl --fail-with-body \
             -H "Content-Type: application/json" \
-            -H "User-Agent: macro-regime-bot-github-actions/1.0" \
-            --data @discord_payload.json \
+            -H "User-Agent: macro-regime-bot/1.0 GitHubActions" \
+            -X POST \
+            -d "$CONTENT" \
             "$DISCORD_WEBHOOK"
