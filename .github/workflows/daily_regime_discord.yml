@@ -37,23 +37,41 @@ jobs:
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          test -n "$DISCORD_WEBHOOK" || {
-            echo "DISCORD_WEBHOOK secret is not configured"
-            exit 1
-          }
+          python - <<'PY'
+          import json, os, sys, urllib.request, urllib.error
 
-          CONTENT=$(python - <<'PY'
-          import json
-          from pathlib import Path
+          webhook = os.environ.get("DISCORD_WEBHOOK")
+          if not webhook:
+              sys.exit("Missing DISCORD_WEBHOOK")
 
-          summary = Path("discord_summary.txt").read_text(encoding="utf-8").strip()
-          print(json.dumps({"content": f"```text\n{summary[:1800]}\n```"}))
-          PY
+          with open("discord_summary.txt", "r", encoding="utf-8") as f:
+              summary = f.read().strip()
+
+          if len(summary) > 1800:
+              summary = summary[:1800] + "\n...[truncated]"
+
+          payload = json.dumps({
+              "content": f"```text\n{summary}\n```"
+          }).encode("utf-8")
+
+          req = urllib.request.Request(
+              webhook,
+              data=payload,
+              headers={
+                  "Content-Type": "application/json",
+                  "User-Agent": "Macro-Bot/1.0"
+              },
+              method="POST"
           )
 
-          curl --fail-with-body \
-            -H "Content-Type: application/json" \
-            -H "User-Agent: macro-regime-bot/1.0 GitHubActions" \
-            -X POST \
-            -d "$CONTENT" \
-            "$DISCORD_WEBHOOK"
+          try:
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  print("Sent:", r.status)
+          except urllib.error.HTTPError as e:
+              print("HTTP error:", e.code)
+              print(e.read().decode())
+              sys.exit(1)
+          except urllib.error.URLError as e:
+              print("Request failed:", e.reason)
+              sys.exit(1)
+          PY
