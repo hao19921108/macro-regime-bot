@@ -135,7 +135,7 @@ def main() -> None:
     print(f"Regime: {regime}")
     print(f"Final Exposure: {exposure}")
     print()
-    print("=== DISCORD SUMMARY ===")
+    print("=== TELEGRAM SUMMARY ===")
     print(f"Date: {as_of}")
     print(f"Macro Score: {macro_score}")
     print(f"Regime: {regime}")

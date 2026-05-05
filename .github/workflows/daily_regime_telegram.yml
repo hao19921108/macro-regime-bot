@@ -1,0 +1,89 @@
+name: Daily Regime Telegram
+
+on:
+  schedule:
+    - cron: "0 14 * * 1-5"
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  daily-regime:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run regime classifier
+        run: python regime_classifier.py | tee daily_regime_output.txt
+
+      - name: Extract Telegram summary
+        run: |
+          awk '/^=== TELEGRAM SUMMARY ===/{found=1} found' daily_regime_output.txt > telegram_summary.txt
+          test -s telegram_summary.txt
+          cat telegram_summary.txt
+
+      - name: Send Telegram message
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python - <<'PY'
+          import json, os, sys, urllib.request, urllib.error
+
+          token = os.environ.get("TELEGRAM_BOT_TOKEN")
+          chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+          if not token:
+              sys.exit("Missing TELEGRAM_BOT_TOKEN")
+          if not chat_id:
+              sys.exit("Missing TELEGRAM_CHAT_ID")
+
+          with open("telegram_summary.txt", "r", encoding="utf-8") as f:
+              summary = f.read().strip()
+
+          if len(summary) > 3500:
+              summary = summary[:3500] + "\n...[truncated]"
+
+          payload = json.dumps({
+              "chat_id": chat_id,
+              "text": summary,
+              "disable_web_page_preview": True,
+          }).encode("utf-8")
+
+          url = f"https://api.telegram.org/bot{token}/sendMessage"
+          req = urllib.request.Request(
+              url,
+              data=payload,
+              headers={
+                  "Content-Type": "application/json",
+                  "User-Agent": "Macro-Regime-Bot/1.0 GitHubActions"
+              },
+              method="POST"
+          )
+
+          try:
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  body = r.read().decode("utf-8", errors="replace")
+                  if r.status < 200 or r.status >= 300:
+                      print("Telegram send failed:", r.status)
+                      print(body)
+                      sys.exit(1)
+                  print("Telegram message sent:", r.status)
+          except urllib.error.HTTPError as e:
+              print("HTTP error:", e.code)
+              print(e.read().decode())
+              sys.exit(1)
+          except urllib.error.URLError as e:
+              print("Request failed:", e.reason)
+              sys.exit(1)
+          PY
